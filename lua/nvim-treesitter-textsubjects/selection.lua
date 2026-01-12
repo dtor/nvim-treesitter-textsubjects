@@ -1,5 +1,4 @@
 local queries = require('nvim-treesitter.query')
-local ts_utils = require('nvim-treesitter.ts_utils')
 
 local M = {}
 
@@ -96,6 +95,37 @@ local function normalize_selection(sel_start, sel_end)
     return { sel_start_row, sel_start_col, sel_end_row, sel_end_col }
 end
 
+local function update_selection(bufnr, range, selection_mode)
+    local start_row, start_col, end_row, end_col = unpack(range)
+    selection_mode = selection_mode or 'v'
+
+    local mode = vim.api.nvim_get_mode()
+    if mode.mode ~= selection_mode then
+        selection_mode = vim.api.nvim_replace_termcodes(selection_mode, true, true, true)
+        vim.cmd.normal({ selection_mode, bang = true })
+    end
+
+    if end_col == 0 then
+        end_row = end_row - 1
+        local line = vim.api.nvim_buf_get_lines(bufnr, end_row, end_row + 1, true)[1]
+        if line then
+            end_col = #line + 1
+        else
+            end_col = 1
+        end
+    end
+
+    local end_col_offset = 1
+    if selection_mode == 'v' and vim.o.selection == 'exclusive' then
+        end_col_offset = 0
+    end
+    end_col = end_col - end_col_offset
+
+    vim.api.nvim_win_set_cursor(0, { start_row + 1, start_col })
+    vim.cmd('normal! o')
+    vim.api.nvim_win_set_cursor(0, { end_row + 1, end_col })
+end
+
 ---@param query string
 ---@param restore_visual boolean
 ---@param sel_start table
@@ -125,7 +155,7 @@ function M.select(query, restore_visual, sel_start, sel_end)
 
     if best then
         local new_best, sel_mode = extend_range_with_whitespace(best)
-        ts_utils.update_selection(bufnr, new_best, sel_mode)
+        update_selection(bufnr, new_best, sel_mode)
         local selections = prev_selections[bufnr]
         if selections == nil or not does_surround(new_best, selections[#selections][1]) then
             prev_selections[bufnr] = {
@@ -193,7 +223,7 @@ function M.prev_select(sel_start, sel_end)
     end
 
     local new_sel, sel_mode = unpack(selections[#selections])
-    ts_utils.update_selection(bufnr, new_sel, sel_mode)
+    update_selection(bufnr, new_sel, sel_mode)
     vim.cmd('normal! o')
 end
 
