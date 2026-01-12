@@ -53,36 +53,23 @@ function M.is_supported(lang)
 end
 
 function M.init()
-    if vim.fn.has('nvim-0.9') == 1 then
-        vim.api.nvim_create_autocmd({ 'FileType' }, {
-            callback = function(details)
-                require('nvim-treesitter.textsubjects').detach(details.buf)
+    vim.api.nvim_create_autocmd('FileType', {
+        callback = function(details)
+            require('nvim-treesitter.textsubjects').detach(details.buf)
 
-                local lang = vim.treesitter.language.get_lang(details.match)
-                if not M.is_supported(lang) then
-                    return
-                end
+            local lang = vim.treesitter.language.get_lang(details.match)
+            if not M.is_supported(lang) then
+                return
+            end
 
-                require('nvim-treesitter.textsubjects').attach(details.buf)
-            end,
-        })
-        vim.api.nvim_create_autocmd({ 'BufUnload' }, {
-            callback = function(details)
-                require('nvim-treesitter.textsubjects').detach(details.buf)
-            end,
-        })
-    else
-        require "nvim-treesitter".define_modules {
-            textsubjects = {
-                module_path = "nvim-treesitter.textsubjects",
-                enable = false,
-                disable = {},
-                prev_selection = nil,
-                keymaps = {},
-                is_supported = M.is_supported,
-            }
-        }
-    end
+            require('nvim-treesitter.textsubjects').attach(details.buf)
+        end,
+    })
+    vim.api.nvim_create_autocmd('BufUnload', {
+        callback = function(details)
+            require('nvim-treesitter.textsubjects').detach(details.buf)
+        end,
+    })
 end
 
 return M
