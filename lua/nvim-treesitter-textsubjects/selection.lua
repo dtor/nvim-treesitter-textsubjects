@@ -1,4 +1,4 @@
-local queries = require('nvim-treesitter.query')
+local matcher = require('nvim-treesitter-textsubjects.matcher')
 
 local M = {}
 
@@ -139,10 +139,9 @@ function M.select(query, restore_visual, sel_start, sel_end)
 
     local sel = normalize_selection(sel_start, sel_end)
     local best
-    local matches = queries.get_capture_matches_recursively(bufnr, '@range', query)
-    for _, m in pairs(matches) do
-        local match_start_row, match_start_col = unpack(m.node.start_pos)
-        local match_end_row, match_end_col = unpack(m.node.end_pos)
+    local ranges = matcher.get_ranges(bufnr, '@range', query)
+    for _, range in ipairs(ranges) do
+        local match_start_row, match_start_col, match_end_row, match_end_col = unpack(range)
         local match = { match_start_row, match_start_col, match_end_row, match_end_col }
 
         -- match must cover an exclusively bigger range than the current selection

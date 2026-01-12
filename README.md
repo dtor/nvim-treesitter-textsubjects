@@ -6,18 +6,17 @@
 
 https://user-images.githubusercontent.com/21000943/148718905-afb4eed4-0adf-4dad-8f37-5179f9ddd055.mov
 
-# Quick Start
+# Quick start
 
-**Note**: This plugin requires [nvim-treesitter](https://github.com/nvim-treesitter/nvim-treesitter) to be installed and set up.
+**Note**: This plugin requires the `main` branch of [nvim-treesitter](https://github.com/nvim-treesitter/nvim-treesitter).
 
-No configuration is required, just install the plugin.
+Install and set up `nvim-treesitter` before using this plugin.
 
-It will setup the following text objects:
-- `;` will select a syntactical container (class, function, etc.) depending on your location in the syntax tree.
-- `i;` will select the body of a syntactical container depending on your location in the syntax tree.
-- `.` will select the most relevant part of the syntax tree depending on your location in it.
-
-It will also setup a mapping for `,` to repeat the last selection.
+The default configuration sets the following mappings:
+- `;` selects a syntactical container (class, function, and so on) depending on your location in the syntax tree.
+- `i;` selects the body of a syntactical container depending on your location in the syntax tree.
+- `.` selects the most relevant part of the syntax tree depending on your location in it.
+- `,` repeats the last selection.
 
 # Configuration
 
@@ -36,7 +35,7 @@ require('nvim-treesitter-textsubjects').configure({
 
 *Note: I know these names are a bit confusing, but naming them is quite difficult.*
 
-# Text Subjects
+# Text subjects
 
 **Note**: I'm open to adding more queries or support for another language, just open and issue or a PR and I can work with you to get the query working.
 
@@ -64,29 +63,42 @@ require('nvim-treesitter-textsubjects').configure({
 
 **Patterns**: comments, consecutive line comments, function calls, function definitions, class definitions, loops, if statements, return values, arguments.
 
-See `queries/*/textsubjects-smart.scm` for full information on the query.
+See `queries/*/textsubjects-smart.scm` for full information about the query.
 
 ## textsubjects-container-outer
 
-**Patterns**: Classes, structs, functions, methods.
+**Patterns**: classes, structs, functions, methods.
 
-See `queries/*/textsubjects-container-outer.scm` for full information on the query.
+See `queries/*/textsubjects-container-outer.scm` for full information about the query.
 
 ## textsubjects-container-inner
 
-**Patterns**: Inside Classes, structs, functions, methods.
+**Patterns**: insides of classes, structs, functions, methods.
 
-See `queries/*/textsubjects-container-inner.scm` for full information on the query.
+See `queries/*/textsubjects-container-inner.scm` for full information about the query.
 
-## Custom Query
+## Custom queries
 
-You can create your own text subjects by creating a Tree-sitter query that has ranges named `range`. This query file name can be provided in the `keymaps` about.
+You can define your own text subjects by creating a Tree-sitter query file in your runtime path (e.g. `queries/<lang>/textsubjects-foo.scm`) and using it in your configuration:
 
-Ranges can be created as follows:
+```lua
+require('nvim-treesitter-textsubjects').configure({
+    keymaps = {
+        ['<cr>'] = 'textsubjects-foo',
+    },
+})
+```
+
+Queries use `@range` captures to define text objects' boundaries:
 
 ```scheme
-((comment) @_start @_end
-     (#make-range! "range" @_start @_end))
+(comment) @range
+```
+
+Quantified captures create ranges from multiple nodes (e.g. all statements in a block):
+
+```scheme
+(compound_statement (_)+ @range)
 ```
 
 See `queries/*/textsubjects-smart.scm` for examples or open an issue if you need any help writing a query.
