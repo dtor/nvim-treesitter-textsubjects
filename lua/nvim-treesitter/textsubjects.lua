@@ -1,4 +1,3 @@
-local parsers = require('nvim-treesitter.parsers')
 local queries = require('nvim-treesitter.query')
 local ts_utils = require('nvim-treesitter.ts_utils')
 local config = require('textsubjects.config')
@@ -103,7 +102,7 @@ end
 
 function M.select(query, restore_visual, sel_start, sel_end)
     local bufnr = vim.api.nvim_get_current_buf()
-    local lang = parsers.get_buf_lang(bufnr)
+    local lang = vim.treesitter.language.get_lang(vim.bo[bufnr].filetype)
     if not lang then return end
 
     local sel = normalize_selection(sel_start, sel_end)

@@ -1,5 +1,4 @@
 local queries = require("nvim-treesitter.query")
-local parsers = require('nvim-treesitter.parsers')
 
 local M = {}
 
@@ -14,7 +13,8 @@ function M.is_supported(lang)
             return false
         end
 
-        if not parsers.has_parser(nested_lang) then
+        local lang_ok, _ = vim.treesitter.language.add(nested_lang)
+        if not lang_ok then
             return false
         end
 
