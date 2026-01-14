@@ -201,43 +201,45 @@ function M.attach(bufnr, _)
             query_name = query
         end
 
-        local cmd_o = string.format(
-            ':lua require("nvim-treesitter.textsubjects").select("%s", false, vim.fn.getpos("."), vim.fn.getpos("."))<cr>',
-            query_name)
-        vim.api.nvim_buf_set_keymap(buf, 'o', keymap, cmd_o, { silent = true, noremap = true, desc = desc })
-        local cmd_x = string.format(
-            ':lua require("nvim-treesitter.textsubjects").select("%s", true, vim.fn.getpos("\'<"), vim.fn.getpos("\'>"))<cr>',
-            query_name)
-        vim.api.nvim_buf_set_keymap(buf, 'x', keymap, cmd_x, { silent = true, noremap = true, desc = desc })
+        vim.keymap.set('o', keymap, function()
+            M.select(query_name, false, vim.fn.getpos('.'), vim.fn.getpos('.'))
+        end, { buffer = buf, silent = true, desc = desc })
+
+        vim.keymap.set('x', keymap, function()
+            -- Force exit visual mode to update marks
+            vim.cmd('normal! \27')
+            M.select(query_name, true, vim.fn.getpos("'<"), vim.fn.getpos("'>"))
+        end, { buffer = buf, silent = true, desc = desc })
     end
 
     local prev_selection = config.get().prev_selection
     if prev_selection ~= nil and #prev_selection > 0 then
-        local cmd_o =
-        ':lua require("nvim-treesitter.textsubjects").prev_select(vim.fn.getpos("."), vim.fn.getpos("."))<cr>'
-        vim.api.nvim_buf_set_keymap(buf, 'o', prev_selection, cmd_o,
-            { silent = true, noremap = true, desc = 'Previous textsubjects selection' })
-        local cmd_x =
-        ':lua require("nvim-treesitter.textsubjects").prev_select(vim.fn.getpos("\'<"), vim.fn.getpos("\'>"))<cr>'
-        vim.api.nvim_buf_set_keymap(buf, 'x', prev_selection, cmd_x,
-            { silent = true, noremap = true, desc = 'Previous textsubjects selection' })
+        vim.keymap.set('o', prev_selection, function()
+            M.prev_select(vim.fn.getpos('.'), vim.fn.getpos('.'))
+        end, { buffer = buf, silent = true, desc = 'Previous textsubjects selection' })
+
+        vim.keymap.set('x', prev_selection, function()
+            -- Force exit visual mode to update marks
+            vim.cmd('normal! \27')
+            M.prev_select(vim.fn.getpos("'<"), vim.fn.getpos("'>"))
+        end, { buffer = buf, silent = true, desc = 'Previous textsubjects selection' })
     end
 end
 
 function M.detach(bufnr)
-    -- we wrap this because nvim_buf_del_keymap can error if we haven't yet created the keymaps
+    -- we wrap this because vim.keymap.del can error if we haven't yet created the keymaps
     -- it's a big tedious to check for each keymap so we just wrap it in a pcall
     pcall(function()
         local buf = bufnr or vim.api.nvim_get_current_buf()
         for keymap, _ in pairs(config.get().keymaps) do
-            vim.api.nvim_buf_del_keymap(buf, 'o', keymap)
-            vim.api.nvim_buf_del_keymap(buf, 'x', keymap)
+            vim.keymap.del('o', keymap, { buffer = buf })
+            vim.keymap.del('x', keymap, { buffer = buf })
         end
 
         local prev_selection = config.get().prev_selection
         if prev_selection ~= nil and #prev_selection > 0 then
-            vim.api.nvim_buf_del_keymap(buf, 'o', prev_selection)
-            vim.api.nvim_buf_del_keymap(buf, 'x', prev_selection)
+            vim.keymap.del('o', prev_selection, { buffer = buf })
+            vim.keymap.del('x', prev_selection, { buffer = buf })
         end
     end)
 end
