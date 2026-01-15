@@ -1,0 +1,81 @@
+local config = require('nvim-treesitter-textsubjects.config')
+local selection = require('nvim-treesitter-textsubjects.selection')
+local matcher = require('nvim-treesitter-textsubjects.matcher')
+
+local M = {}
+
+local function attach(bufnr)
+    local buf = bufnr or vim.api.nvim_get_current_buf()
+    for keymap, query in pairs(config.get().keymaps) do
+        local query_name, desc
+        if type(query) == 'table' then
+            query_name = query[1]
+            desc = query['desc']
+        else
+            query_name = query
+        end
+
+        vim.keymap.set('o', keymap, function()
+            selection.select(query_name, false, vim.fn.getpos('.'), vim.fn.getpos('.'))
+        end, { buffer = buf, silent = true, desc = desc })
+
+        vim.keymap.set('x', keymap, function()
+            -- Force exit visual mode to update marks
+            vim.cmd('normal! \27')
+            selection.select(query_name, true, vim.fn.getpos("'<"), vim.fn.getpos("'>"))
+        end, { buffer = buf, silent = true, desc = desc })
+    end
+
+    local prev_selection = config.get().prev_selection
+    if prev_selection ~= nil and #prev_selection > 0 then
+        vim.keymap.set('o', prev_selection, function()
+            selection.prev_select(vim.fn.getpos('.'), vim.fn.getpos('.'))
+        end, { buffer = buf, silent = true, desc = 'Previous textsubjects selection' })
+
+        vim.keymap.set('x', prev_selection, function()
+            -- Force exit visual mode to update marks
+            vim.cmd('normal! \27')
+            selection.prev_select(vim.fn.getpos("'<"), vim.fn.getpos("'>"))
+        end, { buffer = buf, silent = true, desc = 'Previous textsubjects selection' })
+    end
+end
+
+local function detach(bufnr)
+    -- we wrap this because vim.keymap.del can error if we haven't yet created the keymaps
+    -- it's a big tedious to check for each keymap so we just wrap it in a pcall
+    pcall(function()
+        for keymap, _ in pairs(config.get().keymaps) do
+            vim.keymap.del('o', keymap, { buffer = bufnr })
+            vim.keymap.del('x', keymap, { buffer = bufnr })
+        end
+
+        local prev_selection = config.get().prev_selection
+        if prev_selection ~= nil and #prev_selection > 0 then
+            vim.keymap.del('o', prev_selection, { buffer = bufnr })
+            vim.keymap.del('x', prev_selection, { buffer = bufnr })
+        end
+    end)
+end
+
+function M.configure(config_overrides)
+    config.set(config_overrides)
+end
+
+function M.init()
+    vim.api.nvim_create_autocmd('FileType', {
+        callback = function(details)
+            detach(details.buf)
+
+            if matcher.is_supported(details.buf) then
+                attach(details.buf)
+            end
+        end,
+    })
+    vim.api.nvim_create_autocmd('BufUnload', {
+        callback = function(details)
+            detach(details.buf)
+        end,
+    })
+end
+
+return M
