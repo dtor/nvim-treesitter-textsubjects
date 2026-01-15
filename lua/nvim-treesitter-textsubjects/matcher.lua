@@ -1,8 +1,15 @@
 local Range = require('nvim-treesitter-textsubjects.range').Range
+local Position = require('nvim-treesitter-textsubjects.range').Position
 
 local M = {}
 
-local function is_language_supported(lang, seen)
+---@param name string
+---@return string
+local function get_full_query_name(name)
+    return 'textsubjects-' .. name:gsub('^textsubjects%-', '')
+end
+
+local function is_language_supported(lang, query_names, seen)
     if not lang then
         return false
     end
@@ -12,12 +19,10 @@ local function is_language_supported(lang, seen)
         return false
     end
 
-    if
-        #vim.treesitter.query.get_files(lang, 'textsubjects-smart') > 0
-        or #vim.treesitter.query.get_files(lang, 'textsubjects-container-outer') > 0
-        or #vim.treesitter.query.get_files(lang, 'textsubjects-container-inner') > 0
-    then
-        return true
+    for _, query_name in ipairs(query_names) do
+        if #vim.treesitter.query.get_files(lang, get_full_query_name(query_name)) > 0 then
+            return true
+        end
     end
 
     if seen[lang] then
@@ -28,7 +33,7 @@ local function is_language_supported(lang, seen)
     local query = vim.treesitter.query.get(lang, 'injections')
     if query then
         for _, capture in ipairs(query.info.captures) do
-            if capture == 'language' or is_language_supported(capture, seen) then
+            if capture == 'language' or is_language_supported(capture, query_names, seen) then
                 return true
             end
         end
@@ -36,7 +41,7 @@ local function is_language_supported(lang, seen)
         for _, info in ipairs(query.info.patterns) do
             -- we're looking for #set injection.language <whatever>
             if info[1][1] == 'set!' and info[1][2] == 'injection.language' then
-                if is_language_supported(info[1][3], seen) then
+                if is_language_supported(info[1][3], query_names, seen) then
                     return true
                 end
             end
@@ -47,10 +52,11 @@ local function is_language_supported(lang, seen)
 end
 
 ---@param bufnr number
+---@param query_names string[]
 ---@return boolean
-function M.is_supported(bufnr)
+function M.is_supported(bufnr, query_names)
     local lang = vim.treesitter.language.get_lang(vim.bo[bufnr].filetype)
-    return is_language_supported(lang, {})
+    return lang ~= nil and is_language_supported(lang, query_names, {})
 end
 
 ---@class (exact) textsubjects.Match
@@ -98,10 +104,11 @@ end
 ---Returns list of match objects from nodes matching given capture name and query
 ---@param bufnr integer
 ---@param capture_name string
----@param query_group string
+---@param query_name string
 ---@return textsubjects.Match[]
-function M.get_matches(bufnr, capture_name, query_group)
+function M.get_matches(bufnr, capture_name, query_name)
     capture_name = capture_name:sub(2) -- drop leading '@'
+    query_name = get_full_query_name(query_name)
 
     local lang = vim.treesitter.language.get_lang(vim.bo[bufnr].filetype)
     if not lang then
@@ -118,7 +125,7 @@ function M.get_matches(bufnr, capture_name, query_group)
     local matches = {}
     parser:for_each_tree(function(tstree, language_tree)
         local tree_lang = language_tree:lang()
-        local query = vim.treesitter.query.get(tree_lang, query_group)
+        local query = vim.treesitter.query.get(tree_lang, query_name)
         if query then
             for _, match, _ in query:iter_matches(tstree:root(), bufnr) do
                 local match_obj = match_to_obj(match, query.captures, capture_name)
@@ -129,6 +136,49 @@ function M.get_matches(bufnr, capture_name, query_group)
         end
     end)
     return matches
+end
+
+---Prints matches for a given query suffix for debugging
+---@param query_name string
+function M.print_matches(query_name)
+    local bufnr = vim.api.nvim_get_current_buf()
+    local cursor = Position.from_vim(vim.fn.getpos('.'))
+
+    local lang = vim.treesitter.language.get_lang(vim.bo[bufnr].filetype)
+    if not lang then
+        print('No treesitter support for filetype ' .. vim.bo[bufnr].filetype)
+        return
+    end
+
+    query_name = query_name == '' and 'smart' or query_name
+    if not M.is_supported(bufnr, { query_name }) then
+        print("Query '" .. query_name .. "' does not exist for language '" .. lang .. "'")
+        return
+    end
+
+    print('Cursor: ' .. cursor.row .. ', ' .. cursor.col)
+    print('Query: ' .. query_name)
+
+    local matches = M.get_matches(bufnr, '@range', query_name)
+    if #matches > 0 then
+        for _, m in ipairs(matches) do
+            local line = '  Match: ' .. m.range:to_string()
+
+            if m.extended then
+                line = line .. ' EXT: ' .. m.extended:to_string()
+            end
+
+            -- Use the outermost range (extended if available, otherwise primary) for cursor matching
+            local match_range = m.extended or m.range
+            if match_range.start_pos:le(cursor) and cursor:lt(match_range.end_pos) then
+                line = line .. ' *'
+            end
+
+            print(line)
+        end
+    else
+        print('No matches')
+    end
 end
 
 return M

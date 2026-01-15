@@ -91,6 +91,11 @@ function Range:unpack()
     return self.start_pos.row, self.start_pos.col, self.end_pos.row, self.end_pos.col
 end
 
+---@return string
+function Range:to_string()
+    return string.format('(%d, %d) - (%d, %d)', self:unpack())
+end
+
 ---@param other textsubjects.Range
 ---@return boolean
 function Range:equals(other)

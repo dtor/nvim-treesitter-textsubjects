@@ -114,6 +114,14 @@ the "gap" between a container and its contents, such as the space between the `f
 
 See `queries/*/textsubjects-smart.scm` for examples or open an issue if you need any help writing a query.
 
+# Troubleshooting
+
+If a query does not work as expected, use the `:TextSubjectsDebug` command to see the ranges that a given query (defaults to `smart`) identifies.
+
+```vim
+:TextSubjectsDebug container-outer
+```
+
 # Alternatives
 
 - [nvim-treesitter-textobjects](https://github.com/nvim-treesitter/nvim-treesitter-textobjects): I still use this and it's a great plugin (especially the `lookahead` feature 😉). If you want to target the textobject exactly then this plugin is the way to go. However, it can quickly lead to having too many text object mappings (I had 8 before making this plugin) and it will always deal with whitespace based on the way you invoked it rather than handling this heuristically.

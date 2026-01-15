@@ -64,11 +64,18 @@ end
 M.setup = M.configure
 
 function M.init()
+    vim.api.nvim_create_user_command('TextSubjectsDebug', function(opts)
+        matcher.print_matches(opts.args)
+    end, {
+        nargs = '?',
+        complete = config.get_configured_queries,
+    })
+
     vim.api.nvim_create_autocmd('FileType', {
         callback = function(details)
             detach(details.buf)
 
-            if matcher.is_supported(details.buf) then
+            if matcher.is_supported(details.buf, config.get_configured_queries()) then
                 attach(details.buf)
             end
         end,
