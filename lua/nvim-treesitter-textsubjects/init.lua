@@ -18,18 +18,11 @@ local function attach(bufnr)
 
         vim.keymap.set('o', keymap, function()
             local pos = Position.from_vim(vim.fn.getpos('.'))
-            selection.select(query_name, false, pos, pos)
+            selection.select(query_name, pos, pos)
         end, { buffer = buf, silent = true, desc = desc })
 
         vim.keymap.set('x', keymap, function()
-            -- Force exit visual mode to update marks
-            vim.cmd('normal! \27')
-            selection.select(
-                query_name,
-                true,
-                Position.from_vim(vim.fn.getpos("'<")),
-                Position.from_vim(vim.fn.getpos("'>"))
-            )
+            selection.select(query_name, Position.from_vim(vim.fn.getpos('v')), Position.from_vim(vim.fn.getpos('.')))
         end, { buffer = buf, silent = true, desc = desc })
     end
 
@@ -41,9 +34,7 @@ local function attach(bufnr)
         end, { buffer = buf, silent = true, desc = 'Previous textsubjects selection' })
 
         vim.keymap.set('x', prev_selection, function()
-            -- Force exit visual mode to update marks
-            vim.cmd('normal! \27')
-            selection.prev_select(Position.from_vim(vim.fn.getpos("'<")), Position.from_vim(vim.fn.getpos("'>")))
+            selection.prev_select(Position.from_vim(vim.fn.getpos('v')), Position.from_vim(vim.fn.getpos('.')))
         end, { buffer = buf, silent = true, desc = 'Previous textsubjects selection' })
     end
 end

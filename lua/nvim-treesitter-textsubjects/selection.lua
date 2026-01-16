@@ -179,10 +179,9 @@ end
 
 ---Attempts to select a text object for the current visual selection.
 ---@param query string
----@param restore_visual boolean
 ---@param sel_start textsubjects.Position
 ---@param sel_end textsubjects.Position
-function M.select(query, restore_visual, sel_start, sel_end)
+function M.select(query, sel_start, sel_end)
     local bufnr = vim.api.nvim_get_current_buf()
     local lang = vim.treesitter.language.get_lang(vim.bo[bufnr].filetype)
     if not lang then
@@ -216,10 +215,6 @@ function M.select(query, restore_visual, sel_start, sel_end)
                 mode = sel_mode,
             }
         )
-    else
-        if restore_visual then
-            vim.cmd('normal! gv')
-        end
     end
 end
 
@@ -242,7 +237,6 @@ function M.prev_select(sel_start, sel_end)
         -- If the last selection is invalid (e.g. changedtick mismatch), the
         -- entire history for this buffer is invalid.
         prev_selections[bufnr] = nil
-        vim.cmd('normal! v')
         return
     end
 
