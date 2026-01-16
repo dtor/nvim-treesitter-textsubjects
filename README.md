@@ -20,10 +20,10 @@ The default configuration sets the following mappings:
 
 # Configuration
 
-If you want to override the defaults, you can use the following configuration and modify it as needed.
+Customize the default mappings by calling the `setup` function:
 
 ```lua
-require('nvim-treesitter-textsubjects').configure({
+require('nvim-treesitter-textsubjects').setup({
     prev_selection = ',',
     keymaps = {
         ['.'] = 'textsubjects-smart',
@@ -33,7 +33,7 @@ require('nvim-treesitter-textsubjects').configure({
 })
 ```
 
-*Note: I know these names are a bit confusing, but naming them is quite difficult.*
+*Note: You can use `configure` instead of `setup` if you prefer the original name.*
 
 # Text subjects
 

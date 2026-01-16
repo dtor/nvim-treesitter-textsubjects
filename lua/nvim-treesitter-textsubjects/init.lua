@@ -61,6 +61,9 @@ function M.configure(config_overrides)
     config.set(config_overrides)
 end
 
+-- An alias to allow lazy.nvim automatically apply user configuration
+M.setup = M.configure
+
 function M.init()
     vim.api.nvim_create_autocmd('FileType', {
         callback = function(details)
