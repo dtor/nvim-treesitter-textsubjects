@@ -1,8 +1,8 @@
 local matcher = require('nvim-treesitter-textsubjects.matcher')
+local Range = require('nvim-treesitter-textsubjects.range').Range
+local Position = require('nvim-treesitter-textsubjects.range').Position
 
 local M = {}
-
----@alias textsubjects.Range integer[] -- { start_row, start_col, end_row, end_col }
 
 ---@class textsubjects.Selection
 ---@field changedtick number The buffer's changedtick when the selection was made
@@ -30,43 +30,44 @@ local function get_last_selection(bufnr)
     return last
 end
 
---- @return boolean: true iff the range @a is equal to the range @b
-local function is_equal(a, b)
-    return a[1] == b[1] and a[2] == b[2] and a[3] == b[3] and a[4] == b[4]
+--- Returns a substring of a line from the current buffer.
+---
+--- Note on coordinates:
+--- - Tree-sitter uses 0-based, end-exclusive coordinates [start, end).
+--- - Vim uses 1-based row indices for functions like getline().
+--- - Lua's string.sub uses 1-based, inclusive coordinates.
+--- This function bridges them: vim.fn.getline(row + 1) and string.sub(start + 1, end).
+---
+--- @param row integer 0-based row index
+--- @param start_col? integer 0-based start column (inclusive). Defaults to 0.
+--- @param end_col? integer 0-based end column (exclusive). Defaults to end of line.
+--- @return string slice of the line
+local function get_line_slice(row, start_col, end_col)
+    local line = vim.fn.getline(row + 1)
+    return string.sub(line, (start_col or 0) + 1, end_col or #line)
 end
 
---- @return boolean: true iff the range @a strictly surrounds the range @b. @a == @b => false.
-local function does_surround(a, b)
-    local a_start_row, a_start_col, a_end_row, a_end_col = a[1], a[2], a[3], a[4]
-    local b_start_row, b_start_col, b_end_row, b_end_col = b[1], b[2], b[3], b[4]
-
-    if a_start_row > b_start_row or a_start_row == b_start_row and a_start_col > b_start_col then
-        return false
-    end
-    if a_end_row < b_end_row or a_end_row == b_end_row and a_end_col < b_end_col then
-        return false
-    end
-    return a_start_row < b_start_row or a_start_col < b_start_col or a_end_row > b_end_row or a_end_col > b_end_col
-end
-
---- expand_to_visual_selection extends the selection to select any surrounding
---- whitespace as part of the text object. It heuristically determines if the
---- selection should be line-wise (V) or character-wise (v). If the selection
---- encompasses the entire content of its start and end lines, it switches to
---- line-wise mode and attempts to include a surrounding blank line (preferring
---- the one below). Otherwise, it stays in character-wise mode and includes
---- surrounding whitespace on the same lines. It returns the adjusted range and
---- the chosen visual mode.
-local function expand_to_visual_selection(range)
-    local start_row, start_col, end_row, end_col = unpack(range)
+--- Extends the range to select surrounding whitespace as part of the text object,
+--- and provides optimal selection mode for the range.
+---
+--- It heuristically determines if the selection should be line-wise (V) or
+--- character-wise (v). If the selection encompasses the entire content of its
+--- start and end lines, it switches to line-wise mode and attempts to include a
+--- surrounding blank line (preferring the one below). Otherwise, it stays in
+--- character-wise mode and includes surrounding whitespace on the same lines.
+---
+--- @param range textsubjects.Range
+--- @return textsubjects.Range, string extended updated range and selection mode
+local function extend_range_with_whitespace(range)
+    local start_row, start_col, end_row, end_col = range:unpack()
 
     -- everything before the selection on the same lines as the start of the range
-    local startline = string.sub(vim.fn.getline(start_row + 1), 1, start_col)
+    local startline = get_line_slice(start_row, 0, start_col)
     local startline_len = #startline
     local startline_whitespace_len = #string.match(startline, '(%s*)$', 1)
 
     -- everything after the selection on the same lines as the end of the range
-    local endline = string.sub(vim.fn.getline(end_row + 1), end_col + 1, -1)
+    local endline = get_line_slice(end_row, end_col)
     local endline_len = #endline
     local endline_whitespace_len = #string.match(endline, '^(%s*)', 1)
 
@@ -77,54 +78,66 @@ local function expand_to_visual_selection(range)
         sel_mode = 'V'
         start_col = 0
         if end_row + 1 < vim.fn.line('$') and start_row > 0 then
-            if string.match(vim.fn.getline(end_row + 2), '^%s*$', 1) then
+            if string.match(get_line_slice(end_row + 1), '^%s*$', 1) then
                 -- we either have a blank line below AND above OR just below,
                 -- in either case we want extend to the line below
                 end_row = end_row + 1
-            elseif string.match(vim.fn.getline(start_row), '^%s*$', 1) then
+            elseif string.match(get_line_slice(start_row - 1), '^%s*$', 1) then
                 -- we have a blank line above AND NOT below, we extend to the line above
                 start_row = start_row - 1
             end
         end
-        end_col = #vim.fn.getline(end_row + 1)
+        end_col = #get_line_slice(end_row)
     else
         sel_mode = 'v'
         end_col = end_col + endline_whitespace_len
-        if endline_whitespace_len == 0 and startline_whitespace_len ~= startline_len then
-            start_col = start_col - startline_whitespace_len
+        start_col = start_col - startline_whitespace_len
+    end
+
+    return Range.new(Position.new(start_row, start_col), Position.new(end_row, end_col)), sel_mode
+end
+
+--- Converts selection to a range, extending it as needed in case the editor
+--- is in visual line mode.
+--- @param start_pos textsubjects.Position
+--- @param end_pos textsubjects.Position
+--- @return textsubjects.Range
+local function selection_to_range(start_pos, end_pos)
+    -- Ensure start_pos is before end_pos
+    if end_pos:lt(start_pos) then
+        start_pos, end_pos = end_pos, start_pos
+    else
+        -- Clone to avoid mutating inputs
+        start_pos = start_pos:clone()
+        end_pos = end_pos:clone()
+    end
+
+    if vim.fn.visualmode() == 'V' then
+        start_pos.col = 0
+        end_pos.col = #get_line_slice(end_pos.row)
+    elseif vim.o.selection ~= 'exclusive' then
+        -- Position.from_vim subtracted 1, but for inclusive selection we want
+        -- the exclusive end to be exactly the 1-based column (which is pos.col + 1).
+        if end_pos.col ~= vim.v.maxcol then
+            end_pos.col = end_pos.col + 1
         end
     end
 
-    return { start_row, start_col, end_row, end_col }, sel_mode
-end
-
---- Converts current visual selection or point into a canonical 0-based,
---- end-exclusive range. It handles mode-specific coordinate normalization
---- (e.g. V mode full lines).
-local function normalize_selection(sel_start, sel_end)
-    local _, start_row, start_col = unpack(sel_start)
-    local _, end_row, end_col = unpack(sel_end)
-
-    if vim.fn.visualmode() == 'V' then
-        start_col = 1
-        end_col = #vim.fn.getline(end_row)
-    elseif vim.o.selection == 'exclusive' and end_col ~= vim.v.maxcol then
-        end_col = end_col - 1
+    local line_len = #get_line_slice(end_pos.row)
+    if end_pos.col > line_len then
+        end_pos.col = line_len
     end
 
-    local line_len = #vim.fn.getline(end_row)
-    if end_col > line_len then
-        end_col = line_len
-    end
-
-    return { start_row - 1, math.max(start_col - 1, 0), end_row - 1, end_col }
+    return Range.new(start_pos, end_pos)
 end
 
 --- Selects the given canonical range in the buffer using the specified visual
 --- mode. It handles the translation from internal coordinates to Vim's
 --- inclusive/exclusive cursor positions.
+--- @param range textsubjects.Range
+--- @param selection_mode string
 local function update_selection(range, selection_mode)
-    local start_row, start_col, end_row, end_col = unpack(range)
+    local start_row, start_col, end_row, end_col = range:unpack()
     selection_mode = selection_mode or 'v'
 
     local mode = vim.api.nvim_get_mode()
@@ -155,8 +168,8 @@ local function find_best_range(bufnr, query, current_range)
     local ranges = matcher.get_ranges(bufnr, '@range', query)
     for _, range in ipairs(ranges) do
         -- match must cover an exclusively bigger range than the current selection
-        if does_surround(range, current_range) then
-            if not best or does_surround(best, range) then
+        if range:strictly_surrounds(current_range) then
+            if not best or best:strictly_surrounds(range) then
                 best = range
             end
         end
@@ -164,10 +177,11 @@ local function find_best_range(bufnr, query, current_range)
     return best
 end
 
+---Attempts to select a text object for the current visual selection.
 ---@param query string
 ---@param restore_visual boolean
----@param sel_start table
----@param sel_end table
+---@param sel_start textsubjects.Position
+---@param sel_end textsubjects.Position
 function M.select(query, restore_visual, sel_start, sel_end)
     local bufnr = vim.api.nvim_get_current_buf()
     local lang = vim.treesitter.language.get_lang(vim.bo[bufnr].filetype)
@@ -175,16 +189,17 @@ function M.select(query, restore_visual, sel_start, sel_end)
         return
     end
 
-    local sel = normalize_selection(sel_start, sel_end)
+    local sel = selection_to_range(sel_start, sel_end)
     local last_selection = get_last_selection(bufnr)
     local raw_sel = sel
-    if last_selection and (is_equal(sel, last_selection.range) or is_equal(sel, last_selection.raw_range)) then
+    if last_selection and (sel:equals(last_selection.range) or sel:equals(last_selection.raw_range)) then
         raw_sel = last_selection.raw_range
     end
 
     local best = find_best_range(bufnr, query, raw_sel)
+
     if best then
-        local new_best, sel_mode = expand_to_visual_selection(best)
+        local new_best, sel_mode = extend_range_with_whitespace(best)
         update_selection(new_best, sel_mode)
 
         local last = get_last_selection(bufnr)
@@ -208,14 +223,15 @@ function M.select(query, restore_visual, sel_start, sel_end)
     end
 end
 
----@param sel_start table
----@param sel_end table
+---Attempts to select a previously selected object.
+---@param sel_start textsubjects.Position
+---@param sel_end textsubjects.Position
 function M.prev_select(sel_start, sel_end)
     local bufnr = vim.api.nvim_get_current_buf()
-    local sel = normalize_selection(sel_start, sel_end)
+    local sel = selection_to_range(sel_start, sel_end)
 
     local last = get_last_selection(bufnr)
-    if last and is_equal(sel, last.range) then
+    if last and sel:equals(last.range) then
         -- If current selection matches the last one, discard it and go
         -- to the previous one.
         table.remove(prev_selections[bufnr])

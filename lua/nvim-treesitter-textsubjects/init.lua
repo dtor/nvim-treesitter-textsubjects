@@ -1,6 +1,7 @@
 local config = require('nvim-treesitter-textsubjects.config')
 local selection = require('nvim-treesitter-textsubjects.selection')
 local matcher = require('nvim-treesitter-textsubjects.matcher')
+local Position = require('nvim-treesitter-textsubjects.range').Position
 
 local M = {}
 
@@ -16,26 +17,33 @@ local function attach(bufnr)
         end
 
         vim.keymap.set('o', keymap, function()
-            selection.select(query_name, false, vim.fn.getpos('.'), vim.fn.getpos('.'))
+            local pos = Position.from_vim(vim.fn.getpos('.'))
+            selection.select(query_name, false, pos, pos)
         end, { buffer = buf, silent = true, desc = desc })
 
         vim.keymap.set('x', keymap, function()
             -- Force exit visual mode to update marks
             vim.cmd('normal! \27')
-            selection.select(query_name, true, vim.fn.getpos("'<"), vim.fn.getpos("'>"))
+            selection.select(
+                query_name,
+                true,
+                Position.from_vim(vim.fn.getpos("'<")),
+                Position.from_vim(vim.fn.getpos("'>"))
+            )
         end, { buffer = buf, silent = true, desc = desc })
     end
 
     local prev_selection = config.get().prev_selection
     if prev_selection ~= nil and #prev_selection > 0 then
         vim.keymap.set('o', prev_selection, function()
-            selection.prev_select(vim.fn.getpos('.'), vim.fn.getpos('.'))
+            local pos = Position.from_vim(vim.fn.getpos('.'))
+            selection.prev_select(pos, pos)
         end, { buffer = buf, silent = true, desc = 'Previous textsubjects selection' })
 
         vim.keymap.set('x', prev_selection, function()
             -- Force exit visual mode to update marks
             vim.cmd('normal! \27')
-            selection.prev_select(vim.fn.getpos("'<"), vim.fn.getpos("'>"))
+            selection.prev_select(Position.from_vim(vim.fn.getpos("'<")), Position.from_vim(vim.fn.getpos("'>")))
         end, { buffer = buf, silent = true, desc = 'Previous textsubjects selection' })
     end
 end

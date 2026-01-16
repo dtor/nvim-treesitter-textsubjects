@@ -1,3 +1,5 @@
+local Range = require('nvim-treesitter-textsubjects.range').Range
+
 local M = {}
 
 local function is_language_supported(lang, seen)
@@ -55,7 +57,7 @@ end
 ---@param bufnr integer
 ---@param capture_name string
 ---@param query_group string
----@return table[]
+---@return textsubjects.Range[]
 function M.get_ranges(bufnr, capture_name, query_group)
     capture_name = capture_name:sub(2) -- drop leading '@'
 
@@ -81,10 +83,8 @@ function M.get_ranges(bufnr, capture_name, query_group)
                     if query.captures[id] == capture_name then
                         local first_node = nodes[1]
                         local last_node = nodes[#nodes]
-                        local start_row, start_col = first_node:start()
-                        local end_row, end_col = last_node:end_()
 
-                        table.insert(ranges, { start_row, start_col, end_row, end_col })
+                        table.insert(ranges, Range.from_nodes(first_node, last_node))
                     end
                 end
             end
