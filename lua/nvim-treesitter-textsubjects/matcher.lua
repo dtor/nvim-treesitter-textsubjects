@@ -53,12 +53,54 @@ function M.is_supported(bufnr)
     return is_language_supported(lang, {})
 end
 
----Returns list of ranges from nodes matching given capture name and query
+---@class (exact) textsubjects.Match
+---@field range textsubjects.Range The primary target range
+---@field extended? textsubjects.Range The optional boundary range (for gap detection)
+
+---@param match table<integer, TSNode[]>
+---@param captures string[]
+---@param target_capture string
+---@return textsubjects.Match?
+local function match_to_obj(match, captures, target_capture)
+    ---@type textsubjects.Range?
+    local range
+    ---@type textsubjects.Range?
+    local extended_range
+
+    for id, nodes in pairs(match) do
+        local capture_name = captures[id]
+        local first_node = nodes[1]
+        local last_node = nodes[#nodes]
+
+        if capture_name == target_capture then
+            range = Range.from_nodes(first_node, last_node)
+        elseif capture_name == target_capture .. '.extended' then
+            if #nodes ~= 2 then
+                error('Invalid extended capture: wrong number of nodes' .. #nodes)
+            end
+            extended_range = Range.from_nodes_inner(first_node, last_node)
+        end
+    end
+
+    if range then
+        if extended_range and range:equals(extended_range) then
+            extended_range = nil
+        end
+
+        return ---@type textsubjects.Match
+        {
+            range = range,
+            extended = extended_range,
+        }
+    end
+end
+
+---Returns list of match objects from nodes matching given capture name and query
 ---@param bufnr integer
 ---@param capture_name string
 ---@param query_group string
----@return textsubjects.Range[]
-function M.get_ranges(bufnr, capture_name, query_group)
+---@return textsubjects.Match[]
+function M.get_matches(bufnr, capture_name, query_group)
     capture_name = capture_name:sub(2) -- drop leading '@'
 
     local lang = vim.treesitter.language.get_lang(vim.bo[bufnr].filetype)
@@ -73,24 +115,20 @@ function M.get_ranges(bufnr, capture_name, query_group)
 
     parser:parse(true)
 
-    local ranges = {}
+    local matches = {}
     parser:for_each_tree(function(tstree, language_tree)
         local tree_lang = language_tree:lang()
         local query = vim.treesitter.query.get(tree_lang, query_group)
         if query then
             for _, match, _ in query:iter_matches(tstree:root(), bufnr) do
-                for id, nodes in pairs(match) do
-                    if query.captures[id] == capture_name then
-                        local first_node = nodes[1]
-                        local last_node = nodes[#nodes]
-
-                        table.insert(ranges, Range.from_nodes(first_node, last_node))
-                    end
+                local match_obj = match_to_obj(match, query.captures, capture_name)
+                if match_obj then
+                    table.insert(matches, match_obj)
                 end
             end
         end
     end)
-    return ranges
+    return matches
 end
 
 return M

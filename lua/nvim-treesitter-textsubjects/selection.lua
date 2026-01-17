@@ -165,12 +165,27 @@ end
 --- @return textsubjects.Range?
 local function find_best_range(bufnr, query, current_range)
     local best
-    local ranges = matcher.get_ranges(bufnr, '@range', query)
-    for _, range in ipairs(ranges) do
-        -- match must cover an exclusively bigger range than the current selection
-        if range:strictly_surrounds(current_range) then
-            if not best or best:strictly_surrounds(range) then
-                best = range
+    local matches = matcher.get_matches(bufnr, '@range', query)
+    for _, m in ipairs(matches) do
+        ---@type textsubjects.Range?
+        local target
+
+        if m.range:strictly_surrounds(current_range) then
+            -- We are inside the inner range, so it's a candidate.
+            target = m.range
+        elseif m.extended and m.extended:strictly_surrounds(current_range) then
+            -- We are in the "gap" between the extended boundary and the primary range.
+            -- Select the primary range right away, unless it is already selected.
+            -- This allows "stepping out" to the next construct when triggered repeatedly.
+            if not m.range:equals(current_range) then
+                target = m.range
+            end
+        end
+
+        if target then
+            -- We want the smallest valid target.
+            if not best or best:strictly_surrounds(target) then
+                best = target
             end
         end
     end

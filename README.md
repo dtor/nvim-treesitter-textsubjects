@@ -82,14 +82,16 @@ See `queries/*/textsubjects-container-inner.scm` for full information about the 
 You can define your own text subjects by creating a Tree-sitter query file in your runtime path (e.g. `queries/<lang>/textsubjects-foo.scm`) and using it in your configuration:
 
 ```lua
-require('nvim-treesitter-textsubjects').configure({
+require('nvim-treesitter-textsubjects').setup({
     keymaps = {
         ['<cr>'] = 'textsubjects-foo',
     },
 })
 ```
 
-Queries use `@range` captures to define text objects' boundaries:
+#### The @range capture
+
+Define a text subject by using the `@range` capture.
 
 ```scheme
 (comment) @range
@@ -99,6 +101,15 @@ Quantified captures create ranges from multiple nodes (e.g. all statements in a 
 
 ```scheme
 (compound_statement (_)+ @range)
+```
+
+#### The @range.extended capture
+
+The `@range.extended` capture defines a boundary for improved "inner" container selection. This helps the plugin handle
+the "gap" between a container and its contents, such as the space between the `function` keyword and its body.
+
+```scheme
+(compound_statement "{" @range.extended (_)+ @range "}" @range.extended)
 ```
 
 See `queries/*/textsubjects-smart.scm` for examples or open an issue if you need any help writing a query.

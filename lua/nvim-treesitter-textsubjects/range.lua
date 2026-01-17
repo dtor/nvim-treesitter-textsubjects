@@ -79,6 +79,13 @@ function Range.from_nodes(start_node, end_node)
     return Range.new(Position.new(start_node:start()), Position.new(end_node:end_()))
 end
 
+---@param start_node TSNode
+---@param end_node TSNode
+---@return textsubjects.Range
+function Range.from_nodes_inner(start_node, end_node)
+    return Range.new(Position.new(start_node:end_()), Position.new(end_node:start()))
+end
+
 ---@return integer, integer, integer, integer
 function Range:unpack()
     return self.start_pos.row, self.start_pos.col, self.end_pos.row, self.end_pos.col
