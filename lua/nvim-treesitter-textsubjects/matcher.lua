@@ -101,6 +101,55 @@ local function match_to_obj(match, captures, target_capture)
     end
 end
 
+---"Memoize" a function using hash_fn to hash the arguments.
+---This caches results of a function call for given set of arguments.
+---
+---@generic F: function
+---@param fn F
+---@param hash_fn fun(...): any
+---@return F
+local function memoize(fn, hash_fn)
+    local cache = setmetatable({}, { __mode = 'kv' }) ---@type table<any,any>
+
+    return function(...)
+        local key = hash_fn(...)
+        if cache[key] == nil then
+            local v = fn(...) ---@type any
+            cache[key] = v ~= nil and v or vim.NIL
+        end
+
+        local v = cache[key]
+        return v ~= vim.NIL and v or nil
+    end
+end
+
+--- Prepare matches for given query_group and parsed tree.
+--- Memoize by buffer tick and query group.
+---
+---@param bufnr integer the buffer
+---@param query_group string the query file to use
+---@param root TSNode the root node
+---@param root_lang string the root node lang, if known
+---@param capture_name string the target capture name
+---@return textsubjects.Match[]
+local get_query_matches = memoize(function(bufnr, query_group, root, root_lang, capture_name)
+    local query = vim.treesitter.query.get(root_lang, query_group)
+    if not query then
+        return {}
+    end
+
+    local matches = {} ---@type textsubjects.Match[]
+    for _, match, _ in query:iter_matches(root, bufnr) do
+        local match_obj = match_to_obj(match, query.captures, capture_name)
+        if match_obj then
+            table.insert(matches, match_obj)
+        end
+    end
+    return matches
+end, function(bufnr, query_group, root, _, capture_name)
+    return string.format('%d-%s-%s-%s', bufnr, root:id(), query_group, capture_name)
+end)
+
 ---Returns list of match objects from nodes matching given capture name and query
 ---@param bufnr integer
 ---@param capture_name string
@@ -124,16 +173,10 @@ function M.get_matches(bufnr, capture_name, query_name)
 
     local matches = {}
     parser:for_each_tree(function(tstree, language_tree)
-        local tree_lang = language_tree:lang()
-        local query = vim.treesitter.query.get(tree_lang, query_name)
-        if query then
-            for _, match, _ in query:iter_matches(tstree:root(), bufnr) do
-                local match_obj = match_to_obj(match, query.captures, capture_name)
-                if match_obj then
-                    table.insert(matches, match_obj)
-                end
-            end
-        end
+        vim.list_extend(
+            matches,
+            get_query_matches(bufnr, query_name, tstree:root(), language_tree:lang(), capture_name)
+        )
     end)
     return matches
 end
