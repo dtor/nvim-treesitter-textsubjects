@@ -121,9 +121,11 @@ local function update_selection(bufnr, range, selection_mode)
     end
     end_col = end_col - end_col_offset
 
-    vim.api.nvim_win_set_cursor(0, { start_row + 1, start_col })
-    vim.cmd('normal! o')
+    -- Select from end to start so that we end up with the cursor at the
+    -- beginning of selection.
     vim.api.nvim_win_set_cursor(0, { end_row + 1, end_col })
+    vim.cmd('normal! o')
+    vim.api.nvim_win_set_cursor(0, { start_row + 1, start_col })
 end
 
 ---@param query string
@@ -171,8 +173,6 @@ function M.select(query, restore_visual, sel_start, sel_end)
                 sel_mode,
             })
         end
-        -- I prefer going to start of text object while in visual mode
-        vim.cmd('normal! o')
     else
         if restore_visual then
             vim.cmd('normal! gv')
@@ -223,7 +223,6 @@ function M.prev_select(sel_start, sel_end)
 
     local new_sel, sel_mode = unpack(selections[#selections])
     update_selection(bufnr, new_sel, sel_mode)
-    vim.cmd('normal! o')
 end
 
 return M
