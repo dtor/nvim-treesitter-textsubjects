@@ -208,6 +208,10 @@ function M.select(query, sel_start, sel_end)
     local raw_sel = sel
     if last_selection and (sel:equals(last_selection.range) or sel:equals(last_selection.raw_range)) then
         raw_sel = last_selection.raw_range
+    elseif sel_start:equals(sel_end) then
+        -- If we are starting from a single point (no selection), we use a 0-width
+        -- range for surrounding checks so that we can pick up 1-character nodes.
+        raw_sel = Range.new(sel_start, sel_start)
     end
 
     local best = find_best_range(bufnr, query, raw_sel)
