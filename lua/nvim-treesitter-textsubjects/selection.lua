@@ -59,6 +59,7 @@ end
 --- @param range textsubjects.Range
 --- @return textsubjects.Range, string extended updated range and selection mode
 local function extend_range_with_whitespace(range)
+    local config = require('nvim-treesitter-textsubjects.config').get()
     local start_row, start_col, end_row, end_col = range:unpack()
 
     -- everything before the selection on the same lines as the start of the range
@@ -77,18 +78,34 @@ local function extend_range_with_whitespace(range)
         -- should use visual line mode
         sel_mode = 'V'
         start_col = 0
-        if end_row + 1 < vim.fn.line('$') and string.match(get_line_slice(end_row + 1), '^%s*$', 1) then
-            -- we have a blank line below, we want extend to it
-            end_row = end_row + 1
-        elseif start_row > 0 and string.match(get_line_slice(start_row - 1), '^%s*$', 1) then
-            -- we have a blank line above, we extend to it
-            start_row = start_row - 1
+        if config.greedy_whitespace then
+            while end_row + 1 < vim.fn.line('$') and string.match(get_line_slice(end_row + 1), '^%s*$', 1) do
+                end_row = end_row + 1
+            end
+            while start_row > 0 and string.match(get_line_slice(start_row - 1), '^%s*$', 1) do
+                start_row = start_row - 1
+            end
+        else
+            if end_row + 1 < vim.fn.line('$') and string.match(get_line_slice(end_row + 1), '^%s*$', 1) then
+                -- we have a blank line below, we want extend to it
+                end_row = end_row + 1
+            elseif start_row > 0 and string.match(get_line_slice(start_row - 1), '^%s*$', 1) then
+                -- we have a blank line above, we extend to it
+                start_row = start_row - 1
+            end
         end
         end_col = #get_line_slice(end_row)
     else
         sel_mode = 'v'
-        end_col = end_col + endline_whitespace_len
-        start_col = start_col - startline_whitespace_len
+        if config.greedy_whitespace then
+            start_col = start_col - startline_whitespace_len
+            end_col = end_col + endline_whitespace_len
+        else
+            -- for non-greedy character-wise we just include immediate whitespace
+            -- which is already what the original code did
+            end_col = end_col + endline_whitespace_len
+            start_col = start_col - startline_whitespace_len
+        end
     end
 
     return Range.new(Position.new(start_row, start_col), Position.new(end_row, end_col)), sel_mode

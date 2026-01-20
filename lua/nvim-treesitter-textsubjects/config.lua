@@ -2,6 +2,7 @@ local M = {}
 
 local config = {
     prev_selection = ',',
+    greedy_whitespace = false,
     keymaps = {
         ['.'] = 'textsubjects-smart',
         [';'] = 'textsubjects-container-outer',

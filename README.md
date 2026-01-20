@@ -24,11 +24,12 @@ Customize the default mappings by calling the `setup` function:
 
 ```lua
 require('nvim-treesitter-textsubjects').setup({
-    prev_selection = ',',
+    prev_selection = ',', -- keymap to select the previous selection
+    greedy_whitespace = true, -- whether to greedily add all surrounding whitespace
     keymaps = {
         ['.'] = 'textsubjects-smart',
         [';'] = 'textsubjects-container-outer',
-        ['i;'] = 'textsubjects-container-inner',
+        ['i;'] = { 'textsubjects-container-inner', desc = 'Select inside containers' },
     },
 })
 ```
