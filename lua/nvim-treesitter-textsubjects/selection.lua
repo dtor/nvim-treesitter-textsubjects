@@ -77,15 +77,12 @@ local function extend_range_with_whitespace(range)
         -- should use visual line mode
         sel_mode = 'V'
         start_col = 0
-        if end_row + 1 < vim.fn.line('$') and start_row > 0 then
-            if string.match(get_line_slice(end_row + 1), '^%s*$', 1) then
-                -- we either have a blank line below AND above OR just below,
-                -- in either case we want extend to the line below
-                end_row = end_row + 1
-            elseif string.match(get_line_slice(start_row - 1), '^%s*$', 1) then
-                -- we have a blank line above AND NOT below, we extend to the line above
-                start_row = start_row - 1
-            end
+        if end_row + 1 < vim.fn.line('$') and string.match(get_line_slice(end_row + 1), '^%s*$', 1) then
+            -- we have a blank line below, we want extend to it
+            end_row = end_row + 1
+        elseif start_row > 0 and string.match(get_line_slice(start_row - 1), '^%s*$', 1) then
+            -- we have a blank line above, we extend to it
+            start_row = start_row - 1
         end
         end_col = #get_line_slice(end_row)
     else
